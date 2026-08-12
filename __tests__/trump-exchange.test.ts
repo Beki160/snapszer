@@ -3,6 +3,7 @@ import {
   createInitialMenuState,
   exchangeTrump,
   startNewGameWithSeed,
+  trumpExchangeReplacedCard,
 } from '../src/game/engine';
 import { playComputerTurn } from '../src/game/ai';
 
@@ -82,6 +83,9 @@ describe('Adu csere (alsó)', () => {
 
     const afterExchange = playComputerTurn(state);
     expect(afterExchange.trumpCard!.rank).toBe('also');
+    expect(trumpExchangeReplacedCard(state, afterExchange, 'computer')).toEqual(
+      state.trumpCard,
+    );
     expect(afterExchange.message).toMatch(/gép kicserélte/i);
     expect(afterExchange.currentTrick).toHaveLength(0);
     expect(afterExchange.currentPlayer).toBe('computer');

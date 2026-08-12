@@ -10,8 +10,10 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { HungarianCard } from '../components/HungarianCard';
+import { cardLabel } from '../game/deck';
 import { playComputerTurn } from '../game/ai';
 import {
+  acknowledgeComputerSixtySixViaMarriage,
   canClaimSixtySix,
   canContinueAfterTrick,
   canDeclareMarriageWithCard,
@@ -19,14 +21,18 @@ import {
   canUserDraw,
   canUserPlay,
   claimSixtySix,
+  claimSixtySixFromMarriage,
   continueAfterTrick,
   drawCard,
   exchangeTrump,
   hasDrawableCards,
   isCardPlayable,
   isMarriageHighlightCard,
+  marriageDeclarationValue,
   marriagePointsForSuit,
   playCard,
+  reachedSixtySixViaMarriage,
+  trumpExchangeReplacedCard,
 } from '../game/engine';
 import {
   COMPUTER_DRAW_DELAY_MS,
@@ -37,7 +43,11 @@ import {
 
 type ConfirmAction =
   | { type: 'marriage'; cardId: string; value: number }
-  | { type: 'exchange' };
+  | { type: 'exchange' }
+  | { type: 'stop66' }
+  | { type: 'computerMarriage'; value: 20 | 40; reached66: boolean }
+  | { type: 'computerTrumpExchange'; cardName: string }
+  | { type: 'computer66' };
 
 type Props = {
   state: GameState;
@@ -75,6 +85,9 @@ export function GameScreen({
   const trickCardHeight = Math.round(trickCardWidth * 1.61);
 
   useEffect(() => {
+    if (confirm !== null) {
+      return;
+    }
     if (state.phase !== 'playing' || state.currentPlayer !== 'computer') {
       return;
     }
@@ -84,7 +97,27 @@ export function GameScreen({
 
     const timer = setTimeout(() => {
       try {
-        onChange(playComputerTurn(stateRef.current));
+        const before = stateRef.current;
+        const next = playComputerTurn(before);
+        onChange(next);
+
+        const exchangedCard = trumpExchangeReplacedCard(before, next, 'computer');
+        if (exchangedCard !== null) {
+          setConfirm({
+            type: 'computerTrumpExchange',
+            cardName: cardLabel(exchangedCard),
+          });
+          return;
+        }
+
+        const marriageValue = marriageDeclarationValue(before, next, 'computer');
+        if (marriageValue !== null) {
+          setConfirm({
+            type: 'computerMarriage',
+            value: marriageValue,
+            reached66: reachedSixtySixViaMarriage(before, next, 'computer'),
+          });
+        }
       } catch {
         // ignore
       }
@@ -93,6 +126,7 @@ export function GameScreen({
     return () => clearTimeout(timer);
     // trumpCard változhat aducsere után — emiatt újra kell lépnie a gépnek
   }, [
+    confirm,
     state.phase,
     state.currentPlayer,
     state.currentTrick.length,
@@ -145,10 +179,62 @@ export function GameScreen({
         onCancel={closeConfirm}
         onConfirm={() => {
           const cardId = confirm.cardId;
+          const before = stateRef.current;
           closeConfirm();
-          onChange(
-            playCard(stateRef.current, 'user', cardId, { declareMarriage: true }),
-          );
+          const next = playCard(before, 'user', cardId, { declareMarriage: true });
+          onChange(next);
+          if (reachedSixtySixViaMarriage(before, next, 'user')) {
+            setConfirm({ type: 'stop66' });
+          }
+        }}
+      />
+    ) : confirm?.type === 'stop66' ? (
+      <ConfirmDialog
+        visible
+        title="Elérted a 66-ot, megállsz?"
+        message="A párbemondással elérted a 66 pontot. Megállsz, vagy folytatod a játékot?"
+        confirmLabel="Megállok"
+        cancelLabel="Folytatom"
+        onCancel={closeConfirm}
+        onConfirm={() => {
+          closeConfirm();
+          onChange(claimSixtySixFromMarriage(stateRef.current));
+        }}
+      />
+    ) : confirm?.type === 'computerTrumpExchange' ? (
+      <ConfirmDialog
+        visible
+        alertOnly
+        title="Adu csere"
+        message={`A gép kicserélte a ${confirm.cardName} adut.`}
+        confirmLabel="Rendben"
+        onConfirm={closeConfirm}
+      />
+    ) : confirm?.type === 'computerMarriage' ? (
+      <ConfirmDialog
+        visible
+        alertOnly
+        title={`A gép bemondta a ${confirm.value}-et`}
+        message={`A gép kijátszotta a ${confirm.value}-es párt.`}
+        confirmLabel="Rendben"
+        onConfirm={() => {
+          if (confirm.reached66) {
+            setConfirm({ type: 'computer66' });
+          } else {
+            closeConfirm();
+          }
+        }}
+      />
+    ) : confirm?.type === 'computer66' ? (
+      <ConfirmDialog
+        visible
+        alertOnly
+        title="A gép elérte a 66-ot"
+        message="A gép párbemondással elérte a 66 pontot. A játék véget ért."
+        confirmLabel="Rendben"
+        onConfirm={() => {
+          closeConfirm();
+          onChange(acknowledgeComputerSixtySixViaMarriage(stateRef.current));
         }}
       />
     ) : confirm?.type === 'exchange' ? (

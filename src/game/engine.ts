@@ -671,6 +671,90 @@ export function claimSixtySix(state: GameState): GameState {
   return endGame(state, 'user', 'reached66', 'Elérted a 66 pontot.');
 }
 
+/** Párbemondás után jóváírt pont (20 vagy 40), ha volt ilyen lépés. */
+export function marriagePointDelta(
+  before: GameState,
+  after: GameState,
+  player: PlayerId,
+): number {
+  const pointsDelta =
+    player === 'user'
+      ? after.userPoints - before.userPoints
+      : after.computerPoints - before.computerPoints;
+  if (pointsDelta > 0) {
+    return pointsDelta;
+  }
+
+  return player === 'user'
+    ? after.userPendingMarriage - before.userPendingMarriage
+    : after.computerPendingMarriage - before.computerPendingMarriage;
+}
+
+/** 20 vagy 40, ha a lépés párbemondás volt; különben null. */
+export function marriageDeclarationValue(
+  before: GameState,
+  after: GameState,
+  player: PlayerId,
+): 20 | 40 | null {
+  const delta = marriagePointDelta(before, after, player);
+  return delta === 20 || delta === 40 ? delta : null;
+}
+
+/** A játékos párbemondással érte el vagy haladta meg a 66 pontot. */
+export function reachedSixtySixViaMarriage(
+  before: GameState,
+  after: GameState,
+  player: PlayerId,
+): boolean {
+  const delta = marriagePointDelta(before, after, player);
+  if (delta !== 20 && delta !== 40) {
+    return false;
+  }
+
+  const pointsAfter = player === 'user' ? after.userPoints : after.computerPoints;
+  return pointsAfter >= WIN_POINTS;
+}
+
+/** Adu csere után a lecserélt felfordított lap (ha volt csere). */
+export function trumpExchangeReplacedCard(
+  before: GameState,
+  after: GameState,
+  player: PlayerId,
+): Card | null {
+  if (before.currentPlayer !== player) {
+    return null;
+  }
+  if (before.currentTrick.length !== 0 || after.currentTrick.length !== 0) {
+    return null;
+  }
+  if (!before.trumpCard || !after.trumpCard) {
+    return null;
+  }
+  if (before.trumpCard.id === after.trumpCard.id) {
+    return null;
+  }
+  if (after.trumpCard.rank !== 'also' || after.trumpCard.suit !== before.trumpSuit) {
+    return null;
+  }
+  return before.trumpCard;
+}
+
+/** Megállás párbemondás után — ütés közben is lehetséges. */
+export function claimSixtySixFromMarriage(state: GameState): GameState {
+  if (state.userPoints < WIN_POINTS) {
+    throw new Error('Még nem érted el a 66 pontot');
+  }
+  return endGame(state, 'user', 'reached66', 'Elérted a 66 pontot.');
+}
+
+/** Gép nyer párbemondással elért 66 pontnál (UI megerősítés után). */
+export function acknowledgeComputerSixtySixViaMarriage(state: GameState): GameState {
+  if (state.computerPoints < WIN_POINTS) {
+    throw new Error('A gép még nem érte el a 66 pontot');
+  }
+  return endGame(state, 'computer', 'reached66', 'A gép elérte a 66 pontot párbemondással.');
+}
+
 export function beginNextRound(state: GameState): GameState {
   const winner = state.lastTrickWinner;
   if (!winner) {

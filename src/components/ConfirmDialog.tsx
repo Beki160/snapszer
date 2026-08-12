@@ -7,8 +7,9 @@ type Props = {
   message: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  alertOnly?: boolean;
   onConfirm: () => void;
-  onCancel: () => void;
+  onCancel?: () => void;
 };
 
 export function ConfirmDialog({
@@ -17,30 +18,50 @@ export function ConfirmDialog({
   message,
   confirmLabel = 'Igen',
   cancelLabel = 'Mégsem',
+  alertOnly = false,
   onConfirm,
   onCancel,
 }: Props) {
+  const handleDismiss = onCancel ?? onConfirm;
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={handleDismiss}
+    >
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.message}>{message}</Text>
           <View style={styles.actions}>
-            <Pressable
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.btnGhost, pressed && styles.pressed]}
-              onPress={onCancel}
-            >
-              <Text style={styles.btnGhostText}>{cancelLabel}</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.btnPrimary, pressed && styles.pressed]}
-              onPress={onConfirm}
-            >
-              <Text style={styles.btnPrimaryText}>{confirmLabel}</Text>
-            </Pressable>
+            {alertOnly ? (
+              <Pressable
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.btnPrimary, pressed && styles.pressed]}
+                onPress={onConfirm}
+              >
+                <Text style={styles.btnPrimaryText}>{confirmLabel}</Text>
+              </Pressable>
+            ) : (
+              <>
+                <Pressable
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.btnGhost, pressed && styles.pressed]}
+                  onPress={onCancel!}
+                >
+                  <Text style={styles.btnGhostText}>{cancelLabel}</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.btnPrimary, pressed && styles.pressed]}
+                  onPress={onConfirm}
+                >
+                  <Text style={styles.btnPrimaryText}>{confirmLabel}</Text>
+                </Pressable>
+              </>
+            )}
           </View>
         </View>
       </View>
