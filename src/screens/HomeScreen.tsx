@@ -6,17 +6,21 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useSettings } from '../settings/SettingsContext';
 
 type Props = {
   onNewGame: () => void;
   onNewMatch: () => void;
+  onSettings: () => void;
 };
 
-export function HomeScreen({ onNewGame, onNewMatch }: Props) {
+export function HomeScreen({ onNewGame, onNewMatch, onSettings }: Props) {
+  const { background } = useSettings();
+
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: background.menuRoot }]}>
       <StatusBar style="light" />
-      <View style={styles.atmosphere} />
+      <View style={[styles.atmosphere, { backgroundColor: background.menuAtmosphere }]} />
       <Text style={styles.brand}>Snapszer</Text>
       <Text style={styles.subtitle}>Klasszikus magyar kártyajáték</Text>
 
@@ -38,6 +42,15 @@ export function HomeScreen({ onNewGame, onNewMatch }: Props) {
         <Text style={styles.ctaSecondaryText}>Új parti</Text>
       </Pressable>
 
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Beállítások"
+        style={({ pressed }) => [styles.settingsButton, pressed && styles.ctaPressed]}
+        onPress={onSettings}
+      >
+        <Text style={styles.settingsText}>Beállítások</Text>
+      </Pressable>
+
       <Text style={styles.hint}>
         Parti: elsőként 7 pontig — 1/2/3 pont játszmánként
       </Text>
@@ -48,7 +61,6 @@ export function HomeScreen({ onNewGame, onNewMatch }: Props) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#0F2A22',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 28,
@@ -59,7 +71,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: '#16382D',
   },
   brand: {
     fontFamily: 'serif',
@@ -106,8 +117,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
+  settingsButton: {
+    marginTop: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  settingsText: {
+    color: '#C9B896',
+    fontSize: 15,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
   hint: {
-    marginTop: 28,
+    marginTop: 12,
     color: '#C9B896',
     fontSize: 13,
     textAlign: 'center',

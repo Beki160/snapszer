@@ -1,7 +1,9 @@
 import React from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { Card } from '../game/types';
-import { CARD_BACK_IMAGE, getCardImage } from './cardImages';
+import { useSettings } from '../settings/SettingsContext';
+import { CardBackDesign } from './CardBackDesign';
+import { getCardImage } from './cardImages';
 
 type Props = {
   card: Card;
@@ -22,6 +24,10 @@ export function HungarianCard({
   dimmed = false,
   highlighted = false,
 }: Props) {
+  const { cardBackId } = useSettings();
+  const displayWidth = highlighted ? width - 4 : width;
+  const displayHeight = highlighted ? height - 4 : height;
+
   return (
     <View
       style={[
@@ -31,15 +37,21 @@ export function HungarianCard({
         { width, height },
       ]}
     >
-      <Image
-        source={faceDown ? CARD_BACK_IMAGE : getCardImage(card)}
-        style={[
-          { width: highlighted ? width - 4 : width, height: highlighted ? height - 4 : height },
-          dimmed && styles.dimmedImage,
-        ]}
-        resizeMode="contain"
-        accessibilityLabel={faceDown ? 'Lefordított lap' : card.id}
-      />
+      {faceDown ? (
+        <View style={dimmed ? styles.dimmedImage : undefined}>
+          <CardBackDesign id={cardBackId} width={displayWidth} height={displayHeight} />
+        </View>
+      ) : (
+        <Image
+          source={getCardImage(card)}
+          style={[
+            { width: displayWidth, height: displayHeight },
+            dimmed && styles.dimmedImage,
+          ]}
+          resizeMode="contain"
+          accessibilityLabel={card.id}
+        />
+      )}
       {dimmed ? <View style={styles.dimOverlay} pointerEvents="none" /> : null}
     </View>
   );

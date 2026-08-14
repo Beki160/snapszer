@@ -10,6 +10,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { HungarianCard } from '../components/HungarianCard';
+import { useSettings } from '../settings/SettingsContext';
 import { cardLabel } from '../game/deck';
 import { playComputerTurn } from '../game/ai';
 import {
@@ -70,6 +71,7 @@ export function GameScreen({
   computerDelayMs = COMPUTER_MOVE_DELAY_MS,
   computerDrawDelayMs = COMPUTER_DRAW_DELAY_MS,
 }: Props) {
+  const { background } = useSettings();
   const stateRef = useRef(state);
   stateRef.current = state;
   const { width: screenWidth } = useWindowDimensions();
@@ -261,7 +263,7 @@ export function GameScreen({
     const isMatchOver = state.phase === 'matchOver';
 
     return (
-      <View style={styles.root}>
+      <View style={[styles.root, { backgroundColor: background.gameRoot }]}>
         <StatusBar style="light" />
         <View style={styles.gameOver}>
           <Text style={styles.gameOverTitle}>{state.message}</Text>
@@ -318,7 +320,7 @@ export function GameScreen({
   }
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: background.gameRoot }]}>
       <StatusBar style="light" />
 
       <View style={styles.topBar}>
@@ -521,7 +523,6 @@ export function GameScreen({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#1B4D3E',
     paddingTop: 48,
     paddingBottom: Platform.OS === 'android' ? 72 : 40,
     paddingHorizontal: 16,
