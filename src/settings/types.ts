@@ -1,3 +1,11 @@
+export type DifficultyLevel = 'easy' | 'medium' | 'hard';
+
+export type DifficultyOption = {
+  id: DifficultyLevel;
+  label: string;
+  description: string;
+};
+
 export type CardBackId =
   | 'klasszikus'
   | 'zold'

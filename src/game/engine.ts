@@ -57,6 +57,7 @@ export function createInitialMenuState(): GameState {
     winReason: null,
     endDetail: '',
     message: 'Válaszd a játékmódot',
+    takarasActive: false,
   };
 }
 
@@ -72,9 +73,46 @@ function remainingDrawCount(state: Pick<GameState, 'stock' | 'trumpCard'>): numb
   return state.stock.length + (state.trumpCard ? 1 : 0);
 }
 
-/** Talon elfogyott: színkényszeres fázis. */
-export function isClosedPhase(state: Pick<GameState, 'stock' | 'trumpCard'>): boolean {
-  return remainingDrawCount(state) === 0;
+/** Talon elfogyott vagy takarás van érvényben: színkényszeres fázis. */
+export function isClosedPhase(
+  state: Pick<GameState, 'stock' | 'trumpCard' | 'takarasActive'>,
+): boolean {
+  return state.takarasActive || remainingDrawCount(state) === 0;
+}
+
+/** Pakli + felfordított adu lapok száma. */
+export function talonCardsRemaining(
+  state: Pick<GameState, 'stock' | 'trumpCard'>,
+): number {
+  return remainingDrawCount(state);
+}
+
+/** Adu interakció (csere/takarás) csak 2-nél több talonlapnál lehetséges. */
+export function canInteractWithTrump(state: GameState): boolean {
+  return talonCardsRemaining(state) > 2;
+}
+
+export function canCloseTalon(state: GameState, player: PlayerId): boolean {
+  if (state.phase !== 'playing') return false;
+  if (state.currentPlayer !== player) return false;
+  if (state.currentTrick.length !== 0) return false;
+  if (state.takarasActive) return false;
+  if (!canInteractWithTrump(state)) return false;
+  return true;
+}
+
+/** Takarás: nincs több húzás, színkényszer, minden ütésnek a takarónak kell lennie. */
+export function closeTalon(state: GameState, player: PlayerId): GameState {
+  if (!canCloseTalon(state, player)) {
+    throw new Error('Most nem lehet takarni');
+  }
+
+  return {
+    ...state,
+    takarasActive: true,
+    message:
+      'Takartál! Minden ütésnek a tiédnek kell lennie.\nSzínre színt kell tenni — válassz egy lapot',
+  };
 }
 
 /**
@@ -112,6 +150,8 @@ export function canExchangeTrump(state: GameState, player: PlayerId): boolean {
   if (state.phase !== 'playing') return false;
   if (state.currentPlayer !== player) return false;
   if (state.currentTrick.length !== 0) return false;
+  if (state.takarasActive) return false;
+  if (!canInteractWithTrump(state)) return false;
   if (!state.trumpCard || !state.trumpSuit) return false;
   if (state.trumpCard.rank === 'also') return false;
   if (state.stock.length === 0) return false;
@@ -425,6 +465,7 @@ export function startNewGame(
       leadPlayer === 'user'
         ? 'Te kezdesz — válassz egy lapot'
         : 'A gép kezd',
+    takarasActive: false,
   };
 }
 
@@ -519,6 +560,29 @@ export function resolveTrick(state: GameState): GameState {
     computerPoints: state.computerPoints + (winner === 'computer' ? points : 0),
   };
   scored = creditPendingMarriage(scored, winner);
+
+  if (state.takarasActive && winner === 'computer') {
+    return endGame(
+      scored,
+      'computer',
+      'takarasFailed',
+      'Takarás alatt a gép ütött — vesztettél!',
+    );
+  }
+
+  if (state.takarasActive || remainingDrawCount(scored) === 0) {
+    return {
+      ...scored,
+      phase: 'awaitingContinue',
+      drawPlayer: null,
+      message:
+        winner === 'user'
+          ? state.takarasActive
+            ? 'Nyerted az ütést (takarás).\nKoppints az asztalra a folytatáshoz'
+            : 'Te vitted az ütést.\nKoppints az asztalra a folytatáshoz'
+          : 'A gép vitte az ütést.\nKoppints az asztalra a folytatáshoz',
+    };
+  }
 
   if (remainingDrawCount(scored) > 0) {
     return {
@@ -641,6 +705,7 @@ function applyDraw(state: GameState, player: PlayerId): GameState {
 
 export function canDraw(state: GameState): boolean {
   return (
+    !state.takarasActive &&
     state.phase === 'awaitingDraw' &&
     state.drawPlayer !== null &&
     remainingDrawCount(state) > 0
@@ -802,14 +867,24 @@ export function beginNextRound(state: GameState): GameState {
     phase: 'playing',
     currentPlayer: winner,
     leadPlayer: winner,
-    message: isClosedPhase(cleared)
-      ? winner === 'user'
-        ? 'Talon elfogyott — színre színt kell tenni.\nTe jössz'
-        : 'Talon elfogyott — színre színt kell tenni.\nA gép következik…'
-      : winner === 'user'
-        ? 'Te jössz — válassz egy lapot'
-        : 'A gép következik…',
+    message: closedMessage(state, winner),
   };
+}
+
+function closedMessage(state: GameState, winner: PlayerId): string {
+  if (state.takarasActive) {
+    return winner === 'user'
+      ? 'Takarás alatt vagy — színre színt kell tenni.\nTe jössz'
+      : 'Takarás alatt vagy — színre színt kell tenni.\nA gép következik…';
+  }
+  if (isClosedPhase(state)) {
+    return winner === 'user'
+      ? 'Talon elfogyott — színre színt kell tenni.\nTe jössz'
+      : 'Talon elfogyott — színre színt kell tenni.\nA gép következik…';
+  }
+  return winner === 'user'
+    ? 'Te jössz — válassz egy lapot'
+    : 'A gép következik…';
 }
 
 export function continueAfterTrick(state: GameState): GameState {
@@ -876,5 +951,5 @@ export function canUserPlay(state: GameState): boolean {
 }
 
 export function hasDrawableCards(state: GameState): boolean {
-  return remainingDrawCount(state) > 0;
+  return !state.takarasActive && remainingDrawCount(state) > 0;
 }

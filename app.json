@@ -19,7 +19,18 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png",
+      "name": "Snapszer",
+      "shortName": "Snapszer",
+      "themeColor": "#1A1408",
+      "backgroundColor": "#1A1408",
+      "display": "standalone",
+      "orientation": "portrait"
+    },
+    "experiments": {
+      "baseUrl": "/snapszer"
     }
   }
 }

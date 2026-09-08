@@ -69,7 +69,10 @@ describe('Adu csere (alsó)', () => {
       phase: 'playing' as const,
       currentPlayer: 'computer' as const,
       currentTrick: [],
-      stock: [{ id: 'piros-kiraly', suit: 'piros' as const, rank: 'kiraly' as const }],
+      stock: [
+        { id: 'piros-kiraly', suit: 'piros' as const, rank: 'kiraly' as const },
+        { id: 'zold-also', suit: 'zold' as const, rank: 'also' as const },
+      ],
       trumpCard: {
         id: `${trumpSuit}-tizes`,
         suit: trumpSuit,

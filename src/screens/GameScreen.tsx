@@ -9,20 +9,25 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { DifficultyBadge } from '../components/DifficultyBadge';
 import { HungarianCard } from '../components/HungarianCard';
+import { TrumpActionDialog } from '../components/TrumpActionDialog';
 import { useSettings } from '../settings/SettingsContext';
 import { cardLabel } from '../game/deck';
 import { playComputerTurn } from '../game/ai';
 import {
   acknowledgeComputerSixtySixViaMarriage,
   canClaimSixtySix,
+  canCloseTalon,
   canContinueAfterTrick,
   canDeclareMarriageWithCard,
   canExchangeTrump,
+  canInteractWithTrump,
   canUserDraw,
   canUserPlay,
   claimSixtySix,
   claimSixtySixFromMarriage,
+  closeTalon,
   continueAfterTrick,
   drawCard,
   exchangeTrump,
@@ -45,6 +50,8 @@ import {
 type ConfirmAction =
   | { type: 'marriage'; cardId: string; value: number }
   | { type: 'exchange' }
+  | { type: 'trumpChoice' }
+  | { type: 'closeTalon' }
   | { type: 'stop66' }
   | { type: 'computerMarriage'; value: 20 | 40; reached66: boolean }
   | { type: 'computerTrumpExchange'; cardName: string }
@@ -71,7 +78,7 @@ export function GameScreen({
   computerDelayMs = COMPUTER_MOVE_DELAY_MS,
   computerDrawDelayMs = COMPUTER_DRAW_DELAY_MS,
 }: Props) {
-  const { background } = useSettings();
+  const { background, difficulty } = useSettings();
   const stateRef = useRef(state);
   stateRef.current = state;
   const { width: screenWidth } = useWindowDimensions();
@@ -100,7 +107,7 @@ export function GameScreen({
     const timer = setTimeout(() => {
       try {
         const before = stateRef.current;
-        const next = playComputerTurn(before);
+        const next = playComputerTurn(before, difficulty);
         onChange(next);
 
         const exchangedCard = trumpExchangeReplacedCard(before, next, 'computer');
@@ -135,6 +142,7 @@ export function GameScreen({
     state.trumpCard?.id,
     state.message,
     computerDelayMs,
+    difficulty,
     onChange,
   ]);
 
@@ -159,6 +167,14 @@ export function GameScreen({
   const mayContinue = canContinueAfterTrick(state);
   const showStop66 = canClaimSixtySix(state);
   const userMayExchange = canExchangeTrump(state, 'user');
+  const userMayClose = canCloseTalon(state, 'user');
+  const trumpPressEnabled =
+    canInteractWithTrump(state) &&
+    state.phase === 'playing' &&
+    state.currentPlayer === 'user' &&
+    state.currentTrick.length === 0 &&
+    !state.takarasActive &&
+    (userMayExchange || userMayClose);
   const userCardInTrick = state.currentTrick.find((p) => p.player === 'user')?.card;
   const computerCardInTrick = state.currentTrick.find((p) => p.player === 'computer')?.card;
   const showStock = hasDrawableCards(state);
@@ -167,6 +183,29 @@ export function GameScreen({
     if (!userMayExchange) return;
     setConfirm({ type: 'exchange' });
   };
+
+  const askCloseTalon = () => {
+    if (!userMayClose) return;
+    setConfirm({ type: 'closeTalon' });
+  };
+
+  const askTrumpPress = () => {
+    if (!canInteractWithTrump(state) || state.takarasActive) return;
+    if (userMayExchange && userMayClose) {
+      setConfirm({ type: 'trumpChoice' });
+      return;
+    }
+    if (userMayClose) {
+      askCloseTalon();
+      return;
+    }
+    if (userMayExchange) {
+      askExchangeTrump();
+    }
+  };
+
+  const trumpHint = userMayExchange ? 'Csere?' : null;
+  const trumpHighlighted = userMayExchange;
 
   const closeConfirm = () => setConfirm(null);
 
@@ -252,7 +291,29 @@ export function GameScreen({
           onChange(exchangeTrump(stateRef.current, 'user'));
         }}
       />
+    ) : confirm?.type === 'closeTalon' ? (
+      <ConfirmDialog
+        visible
+        title="Takarás"
+        message="Biztosan takarsz? Ezután nem húzhattok többet, és minden ütésnek a tiédnek kell lennie."
+        confirmLabel="Igen, takarok"
+        cancelLabel="Mégsem"
+        onCancel={closeConfirm}
+        onConfirm={() => {
+          closeConfirm();
+          onChange(closeTalon(stateRef.current, 'user'));
+        }}
+      />
     ) : null;
+
+  const trumpActionDialog = (
+    <TrumpActionDialog
+      visible={confirm?.type === 'trumpChoice'}
+      onClose={closeConfirm}
+      onExchange={askExchangeTrump}
+      onCloseTalon={askCloseTalon}
+    />
+  );
 
   if (
     state.phase === 'gameOver' ||
@@ -327,12 +388,15 @@ export function GameScreen({
         <Pressable onPress={onExitToMenu} accessibilityRole="button">
           <Text style={styles.back}>← Menü</Text>
         </Pressable>
-        <Text style={styles.meta}>
-          {state.mode === 'match'
-            ? `Parti ${state.userMatchPoints}:${state.computerMatchPoints}`
-            : `Játszma #${state.gamesStarted}`}
-          {state.trumpSuit ? ` · Adu: ${SUIT_LABELS[state.trumpSuit]}` : ''}
-        </Text>
+        <View style={styles.topBarCenter}>
+          <DifficultyBadge level={difficulty} variant="game" />
+          <Text style={styles.meta}>
+            {state.mode === 'match'
+              ? `Parti ${state.userMatchPoints}:${state.computerMatchPoints}`
+              : `Játszma #${state.gamesStarted}`}
+            {state.trumpSuit ? ` · Adu: ${SUIT_LABELS[state.trumpSuit]}` : ''}
+          </Text>
+        </View>
       </View>
 
       <Text style={styles.scoreBar}>
@@ -346,6 +410,10 @@ export function GameScreen({
           ? ` (+${state.computerPendingMarriage} pár)`
           : ''}
       </Text>
+
+      {state.takarasActive ? (
+        <Text style={styles.takarasBanner}>Takarás aktív — minden ütésnek a tiédnek kell lennie</Text>
+      ) : null}
 
       <View style={styles.computerZone}>
         <Text style={styles.zoneLabel}>Gép ({state.computerHand.length})</Text>
@@ -404,54 +472,65 @@ export function GameScreen({
         </View>
 
         <View style={styles.stockColumn}>
-          <Pressable
-            disabled={!userMayDraw}
-            accessibilityRole="button"
-            accessibilityLabel="Húzás a pakliból"
-            onPress={() => onChange(drawCard(state, 'user'))}
-            style={({ pressed }) => [
-              styles.stockStack,
-              userMayDraw && styles.stockHighlight,
-              pressed && userMayDraw && styles.stockPressed,
-            ]}
-          >
-            {showStock ? (
-              state.stock.length > 0 ? (
-                <HungarianCard card={state.stock[0]} faceDown width={52} height={84} />
-              ) : state.trumpCard ? (
-                <HungarianCard card={state.trumpCard} width={52} height={84} />
+          <View style={styles.stockStackWrapper}>
+            <Pressable
+              disabled={!userMayDraw || state.takarasActive}
+              accessibilityRole="button"
+              accessibilityLabel="Húzás a pakliból"
+              onPress={() => onChange(drawCard(state, 'user'))}
+              style={({ pressed }) => [
+                styles.stockStack,
+                userMayDraw && styles.stockHighlight,
+                pressed && userMayDraw && styles.stockPressed,
+              ]}
+            >
+              {state.takarasActive ? (
+                state.stock.length > 0 ? (
+                  <HungarianCard card={state.stock[0]} faceDown width={52} height={84} />
+                ) : (
+                  <View style={styles.emptyStock} />
+                )
+              ) : showStock ? (
+                state.stock.length > 0 ? (
+                  <HungarianCard card={state.stock[0]} faceDown width={52} height={84} />
+                ) : state.trumpCard ? (
+                  <HungarianCard card={state.trumpCard} width={52} height={84} />
+                ) : (
+                  <View style={styles.emptyStock} />
+                )
               ) : (
                 <View style={styles.emptyStock} />
-              )
-            ) : (
-              <View style={styles.emptyStock} />
-            )}
-            <Text style={styles.stockCount}>
-              {state.stock.length + (state.trumpCard ? 1 : 0)}
-            </Text>
-            {userMayDraw ? <Text style={styles.drawHint}>Húzz!</Text> : null}
-          </Pressable>
+              )}
+              <Text style={styles.stockCount}>
+                {state.stock.length + (state.trumpCard ? 1 : 0)}
+              </Text>
+              {userMayDraw ? <Text style={styles.drawHint}>Húzz!</Text> : null}
+            </Pressable>
+            {state.takarasActive ? (
+              <View style={styles.takarasXOverlay} pointerEvents="none">
+                <Text style={styles.takarasX}>✕</Text>
+              </View>
+            ) : null}
+          </View>
 
-          {state.trumpCard && state.stock.length > 0 ? (
+          {!state.takarasActive && state.trumpCard && state.stock.length > 0 ? (
             <View style={styles.trumpWrap}>
               <Text style={styles.trumpLabel}>Adu</Text>
               <Pressable
-                disabled={!userMayExchange}
-                onPress={askExchangeTrump}
+                disabled={!trumpPressEnabled}
+                onPress={askTrumpPress}
                 accessibilityRole="button"
-                accessibilityLabel="Adu csere"
+                accessibilityLabel={userMayExchange ? 'Adu csere' : 'Adu'}
                 style={({ pressed }) => [
-                  userMayExchange && styles.trumpExchangeable,
-                  pressed && userMayExchange && styles.stockPressed,
+                  trumpHighlighted && styles.trumpExchangeable,
+                  pressed && trumpPressEnabled && styles.stockPressed,
                 ]}
               >
                 <HungarianCard card={state.trumpCard} width={52} height={84} />
               </Pressable>
-              {userMayExchange ? (
-                <Text style={styles.exchangeHint}>Csere?</Text>
-              ) : null}
+              {trumpHint ? <Text style={styles.exchangeHint}>{trumpHint}</Text> : null}
             </View>
-          ) : state.trumpCard && state.stock.length === 0 ? (
+          ) : !state.takarasActive && state.trumpCard && state.stock.length === 0 ? (
             <Text style={styles.trumpOnlyHint}>Utolsó: adu</Text>
           ) : null}
         </View>
@@ -516,6 +595,7 @@ export function GameScreen({
         </View>
       </View>
       {confirmDialog}
+      {trumpActionDialog}
     </View>
   );
 }
@@ -537,6 +617,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
+  topBarCenter: {
+    alignItems: 'flex-end',
+    gap: 4,
+    flexShrink: 1,
+    marginLeft: 12,
+  },
   back: {
     color: '#E8D9B5',
     fontSize: 16,
@@ -550,6 +636,14 @@ const styles = StyleSheet.create({
     color: '#C9B896',
     fontSize: 13,
     marginBottom: 6,
+  },
+  takarasBanner: {
+    textAlign: 'center',
+    color: '#C45C4A',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+    paddingHorizontal: 8,
   },
   computerZone: {
     alignItems: 'center',
@@ -602,10 +696,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+  stockStackWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+  },
   stockStack: {
     alignItems: 'center',
     borderRadius: 10,
     padding: 4,
+  },
+  takarasXOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 92,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(26, 20, 8, 0.55)',
+    borderRadius: 10,
+  },
+  takarasX: {
+    color: '#E53E3E',
+    fontSize: 64,
+    fontWeight: '900',
+    lineHeight: 64,
+    includeFontPadding: false,
   },
   stockHighlight: {
     backgroundColor: 'rgba(212, 160, 23, 0.25)',

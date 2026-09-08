@@ -1,7 +1,7 @@
 export type Suit = 'piros' | 'tok' | 'zold' | 'makk';
 export type Rank = 'also' | 'felso' | 'kiraly' | 'tizes' | 'asz';
 export type PlayerId = 'user' | 'computer';
-export type WinReason = 'reached66' | 'lastTrick';
+export type WinReason = 'reached66' | 'lastTrick' | 'takarasFailed';
 export type PlayMode = 'single' | 'match';
 
 export type Card = {
@@ -54,6 +54,8 @@ export type GameState = {
   winReason: WinReason | null;
   endDetail: string;
   message: string;
+  /** A játékos takarást hirdetett — nincs húzás, minden ütésnek az övének kell lennie. */
+  takarasActive: boolean;
 };
 
 export const SUITS: Suit[] = ['piros', 'tok', 'zold', 'makk'];

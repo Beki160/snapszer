@@ -1,13 +1,21 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import { DEFAULT_BACKGROUND_COLOR, getBackgroundPalette } from './backgroundColors';
 import { DEFAULT_CARD_BACK } from './cardBacks';
-import { BackgroundColorId, BackgroundPalette, CardBackId } from './types';
+import { DEFAULT_DIFFICULTY } from './difficulty';
+import {
+  BackgroundColorId,
+  BackgroundPalette,
+  CardBackId,
+  DifficultyLevel,
+} from './types';
 
 type SettingsContextValue = {
   cardBackId: CardBackId;
   setCardBackId: (id: CardBackId) => void;
   backgroundColorId: BackgroundColorId;
   setBackgroundColorId: (id: BackgroundColorId) => void;
+  difficulty: DifficultyLevel;
+  setDifficulty: (level: DifficultyLevel) => void;
   background: BackgroundPalette;
 };
 
@@ -22,6 +30,7 @@ export function SettingsProvider({ children }: Props) {
   const [backgroundColorId, setBackgroundColorId] = useState<BackgroundColorId>(
     DEFAULT_BACKGROUND_COLOR,
   );
+  const [difficulty, setDifficulty] = useState<DifficultyLevel>(DEFAULT_DIFFICULTY);
 
   const value = useMemo(
     () => ({
@@ -29,9 +38,11 @@ export function SettingsProvider({ children }: Props) {
       setCardBackId,
       backgroundColorId,
       setBackgroundColorId,
+      difficulty,
+      setDifficulty,
       background: getBackgroundPalette(backgroundColorId),
     }),
-    [cardBackId, backgroundColorId],
+    [cardBackId, backgroundColorId, difficulty],
   );
 
   return (
